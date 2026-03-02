@@ -1,0 +1,90 @@
+import React, { useState, useEffect } from "react"; import { Card, CardContent } from "@/components/ui/card"; import { Button } from "@/components/ui/button"; import { Input } from "@/components/ui/input"; import { ChevronLeft, ChevronRight } from "lucide-react";
+
+// Utility functions const formatDate = (date) => date.toISOString().split("T")[0];
+
+const getWeekDates = (date) => { const start = new Date(date); const day = start.getDay(); const diff = start.getDate() - day + (day === 0 ? -6 : 1); // Monday start start.setDate(diff);
+
+return Array.from({ length: 7 }).map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; }); };
+
+export default function WorkHoursTracker() { const today = new Date();
+
+const [currentDate, setCurrentDate] = useState(today); const [entries, setEntries] = useState(() => { const saved = localStorage.getItem("work-hours"); return saved ? JSON.parse(saved) : {}; });
+
+// Auto switch to current day when day changes useEffect(() => { const interval = setInterval(() => { const now = new Date(); setCurrentDate((prev) => { if (formatDate(prev) !== formatDate(now)) return now; return prev; }); }, 60000); return () => clearInterval(interval); }, []);
+
+useEffect(() => { localStorage.setItem("work-hours", JSON.stringify(entries)); }, [entries]);
+
+const weekDates = getWeekDates(currentDate);
+
+const updateEntry = (date, field, value) => { setEntries((prev) => ({ ...prev, [date]: { ...prev[date], [field]: value, }, })); };
+
+const calculateHours = (start, end) => { if (!start || !end) return 0; const [sh, sm] = start.split(":").map(Number); const [eh, em] = end.split(":").map(Number); const startMinutes = sh * 60 + sm; const endMinutes = eh * 60 + em; return Math.max((endMinutes - startMinutes) / 60, 0); };
+
+const weeklyStats = weekDates.reduce( (acc, date) => { const key = formatDate(date); const entry = entries[key]; const hours = calculateHours(entry?.start, entry?.end); if (hours > 0) acc.days += 1; acc.hours += hours; return acc; }, { days: 0, hours: 0 } );
+
+return ( <div className="min-h-screen bg-gray-100 p-4"> <div className="max-w-4xl mx-auto space-y-4"> <Card className="rounded-2xl shadow"> <CardContent className="p-4 flex items-center justify-between"> <Button variant="outline" onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }} > <ChevronLeft /> </Button>
+
+<h2 className="text-xl font-semibold">
+          Week of {weekDates[0].toDateString()}
+        </h2>
+
+        <Button
+          variant="outline"
+          onClick={() => {
+            const d = new Date(currentDate);
+            d.setDate(d.getDate() + 7);
+            setCurrentDate(d);
+          }}
+        >
+          <ChevronRight />
+        </Button>
+      </CardContent>
+    </Card>
+
+    {weekDates.map((date) => {
+      const key = formatDate(date);
+      const entry = entries[key] || {};
+      const hours = calculateHours(entry.start, entry.end);
+
+      return (
+        <Card key={key} className="rounded-2xl shadow">
+          <CardContent className="p-4 grid md:grid-cols-5 gap-3 items-center">
+            <div className="font-medium">{date.toDateString()}</div>
+
+            <Input
+              type="time"
+              value={entry.start || ""}
+              onChange={(e) => updateEntry(key, "start", e.target.value)}
+            />
+
+            <Input
+              type="time"
+              value={entry.end || ""}
+              onChange={(e) => updateEntry(key, "end", e.target.value)}
+            />
+
+            <div className="text-center font-semibold">
+              {hours.toFixed(2)} hrs
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={() => updateEntry(key, "start", "") || updateEntry(key, "end", "")}
+            >
+              Clear
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    })}
+
+    <Card className="rounded-2xl shadow bg-white">
+      <CardContent className="p-4 flex justify-between font-semibold">
+        <div>Total Days Worked: {weeklyStats.days}</div>
+        <div>Total Hours: {weeklyStats.hours.toFixed(2)}</div>
+      </CardContent>
+    </Card>
+  </div>
+</div>
+
+); }
